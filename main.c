@@ -7,22 +7,33 @@ const uint32_t reglen = sizeof(regs)/sizeof(uint32_t);
 display_t display;
 FontxFile fonts[1][2];
 
-struct print_data { uint32_t len; uint32_t **nums; };
+struct print_data { uint32_t len; char **names; uint32_t **nums; };
 struct print_data make_data(uint32_t len) { 
   struct print_data d = {0};
   d.len = len;
   d.nums = malloc(sizeof(d.nums[0]) * len + 1);
+  d.names = malloc(sizeof(d.names[0]) * len + 1);
   return d;
 }
  
 void *displayloop(void *arg) {
   struct print_data *pd = arg;
   char res[128];
-  uint32_t ypos = 80;
+  int32_t ypos = 80;
+  int32_t ystride = -20;
+
   while (1) {
-    snprintf(res, sizeof(res), "%u", *pd->nums[0]);
-    displayDrawFillRect(&display, ypos, 0, ypos + 40, 200, RGB_WHITE);
-    displayDrawString(&display, fonts[0], ypos, 0, (uint8_t*)res, RGB_RED);
+    int cy = ypos;
+    for (uint32_t i = 0; i < pd->len; ++i) {
+      displayDrawFillRect(&display, cy, 0, cy + 40, 200, RGB_WHITE);
+      cy += ystride;
+    }
+    cy = ypos;
+    for (uint32_t i = 0; i < pd->len; ++i) {
+      snprintf(res, sizeof(res), "%u", *pd->nums[i]);
+      displayDrawString(&display, fonts[0], cy, 0, (uint8_t*)res, RGB_RED);
+      cy += ystride;
+    }
     sleep_msec(200);
   }
   pthread_exit(NULL);
@@ -38,8 +49,13 @@ void init_sys() {
   switchbox_init();
   switchbox_set_pin(IO_AR_SCL, SWB_IIC0_SCL);
   switchbox_set_pin(IO_AR_SDA, SWB_IIC0_SDA);
+  switchbox_set_pin(IO_PMODA3, SWB_IIC1_SCL);
+  switchbox_set_pin(IO_PMODA4, SWB_IIC1_SDA);
   iic_init(IIC0);
   iic_reset(IIC0);
+
+  iic_init(IIC1);
+  iic_reset(IIC1);
 
   InitFontx(fonts[0], "../../fonts/ILGH16XB.FNT", "");
   displayFillScreen(&display, RGB_BLACK);
@@ -66,7 +82,7 @@ void run_crying() {
   pd.nums[0] = &regs[0];
   init_print_thread(&pd);
 
-  iic_set_slave_mode(IIC0, CRYING_ADDR, &(regs[0]), reglen);
+  iic_set_slave_mode(IIC1, CRYING_ADDR, &(regs[0]), reglen);
   uint32_t delay = 0;
   while (1) {
     if (delay > 100) {
@@ -77,7 +93,7 @@ void run_crying() {
     ++delay;
 
     regs[0] = crying_volume;
-    iic_slave_mode_handler(IIC0);
+    iic_slave_mode_handler(IIC1);
     sleep_msec(10);
   }
 }
@@ -116,28 +132,38 @@ void run_decision() {
   pd.nums[1] = &heartbeat;
   pd.nums[2] = &stress;
   init_print_thread(&pd);
+  iic_set_slave_mode(IIC1, DECISION_ADDR, &(regs[0]), reglen);
+  uint32_t delay;
   while (1) {
     if (iic_read_register(IIC0, HEART_ADDR, 0, (uint8_t*)&heartbeat, 4)) { heartbeat = -1; }
     if (iic_read_register(IIC0, CRYING_ADDR, 0, (uint8_t*)&crying_volume, 4)) { crying_volume = -1; }
-    fprintf(stdout, "heart=%i cry=%i\n", heartbeat, crying_volume);
 
+    if (delay > 100) {
+      regs[0] += 1;
+      regs[1] = regs[0] * 2;
+      if (regs[0] > 100) { regs[0] = 0; }
+      delay = 0;
+    }
+    ++delay;
+
+    fprintf(stdout, "heart=%i cry=%i\n", heartbeat, crying_volume);
+    iic_slave_mode_handler(IIC1);
     sleep_msec(100);
   }
 }
 
 void run_motors() {
   SET_TITLE("Motor driver submodule:")
-  uint32_t crying_volume = 80;
+  uint32_t rock_freq = 0, rock_amp = 0;
   struct print_data pd = make_data(1);
   pd.nums[0] = &regs[0];
   init_print_thread(&pd);
 
-  iic_set_slave_mode(IIC0, CRYING_ADDR, &(regs[0]), reglen);
   while (1) {
-    crying_volume += 1;
+    if (iic_read_register(IIC1, DECISION_ADDR, 0, (uint8_t*)&rock_freq, 4)) { rock_freq = -1; }
+    if (iic_read_register(IIC1, DECISION_ADDR, 1, (uint8_t*)&rock_amp, 4)) { rock_amp = -1; }
 
-    regs[0] = crying_volume;
-    iic_slave_mode_handler(IIC0);
+    fprintf(stdout, "freq=%i amp=%i\n", rock_freq, rock_amp);
     sleep_msec(100);
   }
 }

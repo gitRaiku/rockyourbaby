@@ -64,14 +64,6 @@ void run_slave() {
   pthread_join(thread, NULL);
 }
 
-void run_old_slave() {
-  iic_set_slave_mode(IIC0, iicaddress, &(regs[0]), reglen);
-  while (1) {
-    iic_slave_mode_handler(IIC0);
-    sleep_msec(10);
-  }
-}
-
 int main(void)
 {
   init_sys();
@@ -80,7 +72,6 @@ int main(void)
   displayDrawString(&display, fonts[0], 124, 0, text, RGB_RED);
 
   run_slave();
-  // run_old_slave();
 
   iic_destroy(IIC0);
   switchbox_destroy();

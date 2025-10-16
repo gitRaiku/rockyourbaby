@@ -33,7 +33,7 @@ void *displayloop(void *arg) {
       displayDrawString(&display, fonts[0], cy, 0, (uint8_t*)res, RGB_RED);
       cy += ystride;
     }
-    sleep_msec(200);
+    sleep_msec(1000);
   }
   pthread_exit(NULL);
   return arg;

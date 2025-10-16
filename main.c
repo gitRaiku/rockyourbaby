@@ -29,7 +29,7 @@ void *displayloop(void *arg) {
     int cy = ypos;
     for (uint32_t i = 0; i < pd->len; ++i) {
       displayDrawFillRect(&display, cy, 0, cy + 24, 230, RGB_WHITE);
-      snprintf(res, 20, pd->dtype[i] == 1 ? "%s%.3f%s" : "%s%i%s", pd->pre[i], *pd->nums[i], pd->post[i]);
+      snprintf(res, 20, pd->dtype[i] == 1 ? "%s0.%i%s" : "%s%i%s", pd->pre[i], *pd->nums[i], pd->post[i]);
       displayDrawString(&display, fonts[0], cy, 0, (uint8_t*)res, RGB_RED);
       cy += ystride;
     }
@@ -128,9 +128,7 @@ void run_decision() {
   SET_TITLE("Decision making:")
   uint32_t crying_volume = 0;
   uint32_t heartbeat = 0;
-
-  float freq = 0.5;
-  uint32_t amp = 50;
+  uint32_t freq = 5, amp = 50;
   // uint32_t stress = 0;
 
   struct print_data pd = make_data(4);
@@ -157,15 +155,12 @@ void run_decision() {
 
     if (delay > 100) {
       freq += 0.1;
-      amp += 5;
-      if (freq > 0.7) { freq = 0.2; }
+      if (freq > 7) { freq = 2; }
       if (amp > 100) { amp = 20; }
       delay = 0;
     }
     ++delay;
 
-    regs[0] = *((uint32_t*)&freq);
-    regs[1] = amp;
     fprintf(stdout, "heart=%i cry=%i\n", heartbeat, crying_volume);
     iic_slave_mode_handler(IIC1);
     sleep_msec(10);
@@ -174,8 +169,7 @@ void run_decision() {
 
 void run_motors() {
   SET_TITLE("Motor driver:")
-  uint32_t rock_amp = 0;
-  float rock_freq = 0;
+  uint32_t rock_freq = 0, rock_amp = 0;
   struct print_data pd = make_data(2);
   pd.nums[0] = &rock_freq;
   strcpy(pd.pre[0], "Freq: ");
@@ -190,6 +184,7 @@ void run_motors() {
     if (iic_read_register(IIC1, DECISION_ADDR, 0, (uint8_t*)&rock_freq, 4)) { rock_freq = -1; }
     if (iic_read_register(IIC1, DECISION_ADDR, 1, (uint8_t*)&rock_amp, 4)) { rock_amp = -1; }
   
+    fprintf(stdout, "freq=%i amp=%i\n", rock_freq, rock_amp);
     sleep_msec(10);
   }
 }

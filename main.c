@@ -160,7 +160,7 @@ void run_decision() {
 
     fprintf(stdout, "heart=%i cry=%i\n", heartbeat, crying_volume);
     iic_slave_mode_handler(IIC1);
-    sleep_msec(100);
+    sleep_msec(10);
   }
 }
 
@@ -181,7 +181,7 @@ void run_motors() {
     if (iic_read_register(IIC1, DECISION_ADDR, 1, (uint8_t*)&rock_amp, 4)) { rock_amp = -1; }
   
     fprintf(stdout, "freq=%i amp=%i\n", rock_freq, rock_amp);
-    sleep_msec(100);
+    sleep_msec(10);
   }
 }
 

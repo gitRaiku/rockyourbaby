@@ -105,7 +105,7 @@ void run_heartbeat() {
   struct print_data pd = make_data(1);
   pd.nums[0] = &regs[0];
   strcpy(pd.pre[0], "Heartrate: ");
-  strcpy(pd.post[0], "Hz");
+  strcpy(pd.post[0], "Bpm");
   init_print_thread(&pd);
 
   iic_set_slave_mode(IIC0, HEART_ADDR, &(regs[0]), reglen);
@@ -137,7 +137,7 @@ void run_decision() {
   strcpy(pd.post[0], "dB");
   pd.nums[1] = &heartbeat;
   strcpy(pd.pre[1], "Heartrate: ");
-  strcpy(pd.post[1], "Hz");
+  strcpy(pd.post[1], "Bpm");
   pd.nums[2] = &regs[0];
   strcpy(pd.pre[2], "Freq: ");
   strcpy(pd.post[2], "Hz");
@@ -154,12 +154,16 @@ void run_decision() {
     if (iic_read_register(IIC0, CRYING_ADDR, 0, (uint8_t*)&crying_volume, 4)) { crying_volume = -1; }
 
     if (delay > 100) {
-      freq += 0.1;
+      freq += 1;
+      amp += 5;
       if (freq > 7) { freq = 2; }
       if (amp > 100) { amp = 20; }
       delay = 0;
     }
     ++delay;
+
+    regs[0] = freq;
+    regs[1] = amp;
 
     fprintf(stdout, "heart=%i cry=%i\n", heartbeat, crying_volume);
     iic_slave_mode_handler(IIC1);

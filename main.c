@@ -2,6 +2,8 @@
 #include <pthread.h>
 #include <pwm.h>
 
+uint8_t USE_DISPLAY = 0;
+
 uint32_t iicaddress = 0x70;
 uint32_t regs[2] = {1, 1};
 const uint32_t reglen = sizeof(regs)/sizeof(uint32_t);
@@ -45,7 +47,9 @@ void init_sys() {
   buttons_init();
   switches_init();
 
-  display_init(&display);
+  if (USE_DISPLAY) {
+    display_init(&display);
+  }
   switchbox_init();
   switchbox_set_pin(IO_AR_SCL, SWB_IIC0_SCL);
   switchbox_set_pin(IO_AR_SDA, SWB_IIC0_SDA);
@@ -57,10 +61,11 @@ void init_sys() {
   iic_init(IIC1);
   iic_reset(IIC1);
 
-  InitFontx(fonts[0], "../../fonts/ILGH24XB.FNT", "");
-  displayFillScreen(&display, RGB_WHITE);
-
-  displaySetFontDirection(&display, TEXT_DIRECTION90);
+  if (USE_DISPLAY) {
+    InitFontx(fonts[0], "../../fonts/ILGH24XB.FNT", "");
+    displayFillScreen(&display, RGB_WHITE);
+    displaySetFontDirection(&display, TEXT_DIRECTION90);
+  }
 }
 
 void init_print_thread(struct print_data *value) {
@@ -173,28 +178,37 @@ void run_decision() {
 }
 
 void run_motors() {
-  SET_TITLE("Motor driver:")
   uint32_t rock_freq = 0, rock_amp = 0;
   struct print_data pd = make_data(2);
-  pd.nums[0] = &rock_freq;
-  strcpy(pd.pre[0], "Freq: ");
-  strcpy(pd.post[0], "Hz");
-  pd.dtype[0] = 1;
-  pd.nums[1] = &rock_amp;
-  strcpy(pd.pre[1], "Amp: ");
-  strcpy(pd.post[1], "%");
-  init_print_thread(&pd);
+  if (USE_DISPLAY) {
+    SET_TITLE("Motor driver:")
+    pd.nums[0] = &rock_freq;
+    strcpy(pd.pre[0], "Freq: ");
+    strcpy(pd.post[0], "Hz");
+    pd.dtype[0] = 1;
+    pd.nums[1] = &rock_amp;
+    strcpy(pd.pre[1], "Amp: ");
+    strcpy(pd.post[1], "%");
+    init_print_thread(&pd);
+  }
 
   // gpio_set_direction(IO_AR0, GPIO_DIR_OUTPUT);
   switchbox_set_pin(IO_AR0, SWB_PWM0);
   pwm_init(PWM0, 1000);
-  pwm_set_duty_cycle(PWM0, INT32_MAX);
+   pwm_set_duty_cycle(PWM0, INT32_MAX);
+  //pwm_set_duty_cycle(PWM0, 200);
 
   // gpio_set_direction(IO_AR1, GPIO_DIR_OUTPUT);
   switchbox_set_pin(IO_AR1, SWB_PWM1);
   pwm_init(PWM1, 2000);
-  pwm_set_duty_cycle(PWM1, 0);
-  while (1) {}
+  pwm_set_duty_cycle(PWM1, 100);
+  int cp = 0;
+  while (1) {
+    cp += 1;
+    pwm_set_duty_cycle(PWM0, cp);
+    fprintf(stdout, "%u\n", cp);
+    sleep_msec(100);
+  }
   return;
 
   while (1) {

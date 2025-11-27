@@ -1,5 +1,6 @@
 #include <libpynq.h>
 #include <pthread.h>
+#include <pwm.h>
 
 uint32_t iicaddress = 0x70;
 uint32_t regs[2] = {1, 1};
@@ -183,6 +184,18 @@ void run_motors() {
   strcpy(pd.pre[1], "Amp: ");
   strcpy(pd.post[1], "%");
   init_print_thread(&pd);
+
+  // gpio_set_direction(IO_AR0, GPIO_DIR_OUTPUT);
+  switchbox_set_pin(IO_AR0, SWB_PWM0);
+  pwm_init(PWM0, 1000);
+  pwm_set_duty_cycle(PWM0, INT32_MAX);
+
+  // gpio_set_direction(IO_AR1, GPIO_DIR_OUTPUT);
+  switchbox_set_pin(IO_AR1, SWB_PWM1);
+  pwm_init(PWM1, 2000);
+  pwm_set_duty_cycle(PWM1, 0);
+  while (1) {}
+  return;
 
   while (1) {
     if (iic_read_register(IIC1, DECISION_ADDR, 0, (uint8_t*)&rock_freq, 4)) { rock_freq = -1; }

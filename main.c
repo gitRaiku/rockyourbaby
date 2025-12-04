@@ -2,13 +2,16 @@
 #include <pthread.h>
 #include <pwm.h>
 
-uint8_t USE_DISPLAY = 0;
+uint8_t USE_DISPLAY = 1;
 
 uint32_t iicaddress = 0x70;
 uint32_t regs[2] = {1, 1};
 const uint32_t reglen = sizeof(regs)/sizeof(uint32_t);
 display_t display;
 FontxFile fonts[1][2];
+
+uint32_t min(uint32_t o1, uint32_t o2) { return o1 < o2 ? o1 : o2; }
+uint32_t max(uint32_t o1, uint32_t o2) { return o1 > o2 ? o1 : o2; }
 
 struct print_data { uint32_t len; char **pre; uint32_t **nums; char **post; uint32_t *dtype; };
 struct print_data make_data(uint32_t len) { 
@@ -32,7 +35,7 @@ void *displayloop(void *arg) {
     int cy = ypos;
     for (uint32_t i = 0; i < pd->len; ++i) {
       displayDrawFillRect(&display, cy, 0, cy + 24, 230, RGB_WHITE);
-      snprintf(res, 20, pd->dtype[i] == 1 ? "%s0.%i%s" : "%s%i%s", pd->pre[i], *pd->nums[i], pd->post[i]);
+      snprintf(res, 20, pd->dtype[i] == 1 ? "%s0.%02i%s" : "%s%i%s", pd->pre[i], *pd->nums[i], pd->post[i]);
       displayDrawString(&display, fonts[0], cy, 0, (uint8_t*)res, RGB_RED);
       cy += ystride;
     }
@@ -177,46 +180,79 @@ void run_decision() {
   }
 }
 
+uint32_t pwm_get_duty(uint32_t proc) { return proc * 1000;}
+
+uint32_t pwm_freq_duty(uint32_t freq) {
+  if (freq > 68) { return 80; }
+  if (freq > 57) { return 60; }
+  if (freq > 40) { return 40; }
+  if (freq > 30) { return 20; }
+  return 5;
+}
+
+uint32_t pwm_amp_duty(uint32_t amp) {
+  if (amp > 90) { return 80; }
+  if (amp > 70) { return 60; }
+  if (amp > 50) { return 40; }
+  if (amp > 30) { return 20; }
+  return 5;
+}
+
+void pwm_set_cycle(uint32_t n, uint32_t dut) {
+  pwm_set_duty_cycle((n == 0) ? PWM0 : PWM1, pwm_get_duty(dut));
+}
+
 void run_motors() {
   uint32_t rock_freq = 0, rock_amp = 0;
-  struct print_data pd = make_data(2);
+  struct print_data pd = make_data(4);
+  uint32_t pwm_freq = 0, pwm_amp = 0;
   if (USE_DISPLAY) {
     SET_TITLE("Motor driver:")
     pd.nums[0] = &rock_freq;
     strcpy(pd.pre[0], "Freq: ");
     strcpy(pd.post[0], "Hz");
     pd.dtype[0] = 1;
-    pd.nums[1] = &rock_amp;
-    strcpy(pd.pre[1], "Amp: ");
+    pd.nums[1] = &pwm_freq;
+    strcpy(pd.pre[1], "Freq PWM: ");
     strcpy(pd.post[1], "%");
+    pd.nums[2] = &rock_amp;
+    strcpy(pd.pre[2], "Amp: ");
+    strcpy(pd.post[2], "%");
+    pd.nums[3] = &pwm_amp;
+    strcpy(pd.pre[3], "Amp PWM: ");
+    strcpy(pd.post[3], "%");
     init_print_thread(&pd);
   }
 
-  // gpio_set_direction(IO_AR0, GPIO_DIR_OUTPUT);
   switchbox_set_pin(IO_AR0, SWB_PWM0);
-  pwm_init(PWM0, 1000);
-   pwm_set_duty_cycle(PWM0, INT32_MAX);
-  //pwm_set_duty_cycle(PWM0, 200);
-
-  // gpio_set_direction(IO_AR1, GPIO_DIR_OUTPUT);
   switchbox_set_pin(IO_AR1, SWB_PWM1);
-  pwm_init(PWM1, 2000);
-  pwm_set_duty_cycle(PWM1, 100);
+  pwm_init(PWM0, 100000);
+  pwm_init(PWM1, 100000);
+  pwm_set_duty_cycle(PWM0, 0);
+  pwm_set_duty_cycle(PWM1, 0);
   int cp = 0;
   while (1) {
-    cp += 1;
+    cp += 1000;
+    cp %= 100000;
+    rock_freq = cp / 1000;
+    rock_amp = cp / 1000;
+    /*
     pwm_set_duty_cycle(PWM0, cp);
+    pwm_set_duty_cycle(PWM1, 100000 - cp);
     fprintf(stdout, "%u\n", cp);
-    sleep_msec(100);
-  }
-  return;
-
-  while (1) {
-    if (iic_read_register(IIC1, DECISION_ADDR, 0, (uint8_t*)&rock_freq, 4)) { rock_freq = -1; }
-    if (iic_read_register(IIC1, DECISION_ADDR, 1, (uint8_t*)&rock_amp, 4)) { rock_amp = -1; }
+    sleep_msec(100);*/
+    /*if (iic_read_register(IIC1, DECISION_ADDR, 0, (uint8_t*)&rock_freq, 4)) { rock_freq = -1; }
+    if (iic_read_register(IIC1, DECISION_ADDR, 1, (uint8_t*)&rock_amp, 4)) { rock_amp = -1; }*/
+    pwm_freq = pwm_freq_duty(rock_freq);
+    pwm_amp  = pwm_amp_duty (rock_amp );
+    // pwm_set_cycle(0, pwm_freq);
+    // pwm_set_cycle(1, pwm_amp);
+    pwm_set_cycle(0, cp / 1000);
+    pwm_set_cycle(1, cp / 1000);
   
     fprintf(stdout, "freq=%i amp=%i\n", rock_freq, rock_amp);
     sleep_msec(10);
+    sleep_msec(50);
   }
 }
 
